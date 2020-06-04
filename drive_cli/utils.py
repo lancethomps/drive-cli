@@ -14,6 +14,7 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 from httplib2 import Http
 from oauth2client import file
 
+from ltpylib import dates
 
 dirpath = os.path.dirname(os.path.realpath(__file__))
 mime = MimeTypes()
@@ -146,8 +147,7 @@ def get_request(service, fid, mimeType):
 
 
 def write_needed(dir_name, item, overwrite=False, skip=False):
-    drive_time = time.mktime(time.strptime(
-        item['modifiedTime'], '%Y-%m-%dT%H:%M:%S.%fZ')) + float(19800.00)
+    drive_time = dates.parse_iso_date(item['modifiedTime']).timestamp() + float(19800.00)
     local_time = os.path.getmtime(dir_name)
     data = drive_data()
     sync_time = data[dir_name]['time']
@@ -171,9 +171,8 @@ def write_needed(dir_name, item, overwrite=False, skip=False):
 
 
 def push_needed(drive, item_path):
-    drive_time = time.mktime(time.strptime(
-        drive['modifiedTime'], '%Y-%m-%dT%H:%M:%S.%fZ')) + float(19800.00)
-    local_time = os.path.getmtime(item_path) - float(19801.00)
+    drive_time = dates.parse_iso_date(drive['modifiedTime']).timestamp()
+    local_time = os.path.getmtime(item_path)
     data = drive_data()
     sync_time = data[item_path]['time']
     if sync_time < local_time:
@@ -268,6 +267,7 @@ def get_child(cwd):
                                         pageToken=page_token
                                         ).execute()
         for child in children.get('files', []):
+            child['modifiedTimeTimestamp'] = dates.parse_iso_date(child['modifiedTime']).timestamp()
             drive_lis[child['name']] = child
         page_token = children.get('nextPageToken', None)
         if page_token is None:
