@@ -67,7 +67,7 @@ def drive_data(*argv):
                 data = {}
             else:
                 data = argv[0]
-            json.dump(data, outfile)
+            json.dump(data, outfile, sort_keys=True, indent="  ")
     else:
         if(not len(argv)):
             with open(dclipath, 'r') as infile:
@@ -75,7 +75,7 @@ def drive_data(*argv):
         else:
             with open(dclipath, 'w') as outfile:
                 data = argv[0]
-                json.dump(data, outfile)
+                json.dump(data, outfile, sort_keys=True, indent="  ")
     return data
 
 
@@ -145,7 +145,7 @@ def get_request(service, fid, mimeType):
         return request, ""
 
 
-def write_needed(dir_name, item):
+def write_needed(dir_name, item, overwrite=False, skip=False):
     drive_time = time.mktime(time.strptime(
         item['modifiedTime'], '%Y-%m-%dT%H:%M:%S.%fZ')) + float(19800.00)
     local_time = os.path.getmtime(dir_name)
@@ -153,6 +153,12 @@ def write_needed(dir_name, item):
     sync_time = data[dir_name]['time']
     if(sync_time < drive_time):
         if(sync_time < local_time):
+            if overwrite:
+                return True
+
+            if skip:
+                return False
+
             input = ''
             while(input != 's' and input != 'o'):
                 input = click.prompt("Conflict: both local and online copy of " +
@@ -391,12 +397,12 @@ def update_file(name, path, fid):
                                       media_body=media,
                                       fields='id').execute()
     data = drive_data()
-    data[path]['time'] = {'time': time.time()}
+    data[path]['time'] = time.time()
     drive_data(data)
     return new_file
 
 
-def pull_content(cwd, fid):
+def pull_content(cwd, fid, overwrite = False, skip = False):
     data = drive_data()
     token = os.path.join(dirpath, 'token.json')
     store = file.Storage(token)
@@ -419,7 +425,7 @@ def pull_content(cwd, fid):
     for item in lis:
         dir_name = os.path.join(cwd, item['name'])
         if(item['mimeType'] != 'application/vnd.google-apps.folder'):
-            if((not os.path.exists(dir_name)) or write_needed(dir_name, item)):
+            if((not os.path.exists(dir_name)) or write_needed(dir_name, item, overwrite=overwrite, skip=skip)):
                 file_download(item, cwd, data[cwd]['time'])
         else:
             if(not os.path.exists(dir_name)):
@@ -469,9 +475,9 @@ def list_status(cwd, sync_time):
         click.secho("No changes made since the last sync")
 
 
-def push_content(cwd, fid):
+def push_content(cwd, fid, child_file=None, force=False):
     drive_lis = get_child(cwd)
-    local_lis = list_local(cwd)
+    local_lis = [child_file] if child_file else list_local(cwd)
     data = drive_data()
     for item in local_lis:
         item_path = os.path.join(cwd, item)
@@ -491,9 +497,12 @@ def push_content(cwd, fid):
                 click.secho("uploading " + item + " ....")
                 upload_file(item, item_path, fid)
             else:
-                if(push_needed(drive_lis[item], item_path)):
+                if force or (push_needed(drive_lis[item], item_path)):
                     click.secho("updating " + item)
-                    cid = get_child_id(fid, item)
+                    if item in drive_lis:
+                        cid = drive_lis.get(item).get("id")
+                    else:
+                        cid = get_child_id(fid, item)
                     update_file(item, item_path, cid)
                     click.secho("updating of " + item +
                                 " completed", fg='yellow')

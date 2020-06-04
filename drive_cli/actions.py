@@ -275,7 +275,9 @@ def status():
 
 
 @click.command('pull', short_help='get latest updates from online drive of the file')
-def pull():
+@click.option('--overwrite', is_flag=bool, help="overwrite local changes")
+@click.option('--skip', is_flag=bool, help="skip for files with local changes")
+def pull(overwrite, skip):
     cwd = os.getcwd()
     utils.save_history([{}, "", cwd])
     data = utils.drive_data()
@@ -287,28 +289,31 @@ def pull():
     current_root = utils.get_file(fid)
     click.secho("checking for changes in '" +
                 current_root['name'] + "' ....", fg='magenta')
-    utils.pull_content(cwd, fid)
+    utils.pull_content(cwd, fid, overwrite=overwrite, skip=skip)
     click.secho(current_root['name'] +
                 " is up to date with drive", fg='yellow')
 
 
 @click.command('push', short_help='push modification from local files to the drive')
-def push():
+@click.option('--force', is_flag=bool, help="force push")
+@click.option('--fid', help='specify the particular file to be pushed else entire directory is pushed')
+def push(force, fid):
     '''
     push the latest changes from your local folder that has been added/cloned to google drive.
     '''
     cwd = os.getcwd()
     utils.save_history([{}, "", cwd])
     data = utils.drive_data()
-    if cwd not in data.keys():
-        click.secho(
-            "following directory has not been tracked: \nuse drive add_remote or drive clone ", fg='red')
-        sys.exit(0)
-    fid = data[cwd]['id']
+    if not fid:
+        if cwd not in data.keys():
+            click.secho(
+                "following directory has not been tracked: \nuse drive add_remote or drive clone ", fg='red')
+            sys.exit(0)
+        fid = data[cwd]['id']
     current_root = utils.get_file(fid)
     click.secho("checking for changes in '" +
                 current_root['name'] + "' ....", fg='magenta')
-    utils.push_content(cwd, fid)
+    utils.push_content(cwd, fid, force=force)
     click.secho("Working directory is clean", fg="green")
 
 
